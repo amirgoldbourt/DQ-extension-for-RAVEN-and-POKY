@@ -1,7 +1,9 @@
 import tkinter
 from tkinter import filedialog
 import urllib.request
-import pandas as pd
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 
 
 #### Object Oriented Programming - defined class of amino acid (intended to allow the user add new features more conveniently) ####
@@ -84,11 +86,11 @@ class Amino_acid:
 
 # STAGE 1- get an assignment file in RAVEN format and convert it into an assignment table suitable for INADEQUATE experiment processing:
 # step 1- convert the assignment file into a matrix
-# step 2- create a dictionary of the possible atoms (C,Ca,Cb,....) and their associated indeces
-# step 3- functions that create a new line according to INADEQUATE saving data technique (need the number of amino acid in the protein)
-# step 4- function that returns a new matrix after adjustments according to the chosen function in step 4
+# step 2- create a dictionary of the possible atoms (C,Ca,Cb,....) and their associated index
+# step 3- functions that create new line according to INADEQUATE saving data technique (need the number of amino acid in the protein)
+# step 4- function that returns new matrix after adjustments according to the chosen function in step 4
 # step 5- function that merge matrices form step 1 (the original) and from step 4 (after adjustment) and write it into a new file (destination file is required)
-# step 6- function that combines all the above functions into one. also adjusts step 1 in case there is no assignment to an amino acid.
+# step 6- function that generalize all the above functions into one. also adjust step 1 in case there is no assignment to an amino acid.
 
 
 ##########################################################################################################################################
@@ -200,7 +202,7 @@ def E_adjustment (o_l,D,num_of_AA):
     list[0]=f"&{o_l[0].AA_ID()}{int(o_l[0].AA_Location)+num_of_AA}"
     return list
 
-def F_adjustment (o_l,D,num_of_AA): #In rings it starts with the carbon with the letter that appears first in the alphabet, and going clockwise until completing the ring
+def F_adjustment (o_l,D,num_of_AA): #In rings it starts with the carbon with the "highest" letter, and going clockwise until completing the ring
     list = o_l[:]
     if o_l[D.get("Cz")]not in ["*","-"] and o_l[D.get("Ce2")]not in ["*","-"] :
         list[D.get("Cz")]=str(round(float(o_l[D.get("Cz")])+float(o_l[D.get("Ce2")]),2))
@@ -680,7 +682,7 @@ def adjustment_assignment_table_and_seq (shift_assignment_fill,seq_fil,path):
     while seq_fil[i]!="/":
         seq_name+=seq_fil[i]
         i-=1
-    f_new = open(f"{path}/{seq_name[::-1]}_double.seq", "w")
+    f_new = open(f"{path}/{seq_name[::-1]} duplicated.seq", "w")
     f_new.write(new_str)
     # get the assignment matrix
     step0_1=get_Assignment_str_matrix(shift_assignment_fill)
@@ -723,8 +725,8 @@ def adjustment_assignment_table_and_seq (shift_assignment_fill,seq_fil,path):
     while shift_assignment_fill[i] != "/":
         table_name += shift_assignment_fill[i]
         i -= 1
-    step4 = write_merge_file(f"{path}/{table_name[::-1]}_inadequate_adjastment.shifts", step1,step3)
-    return (f"{path}/{table_name[::-1]}_inadequate_adjastment.shifts",f"{path}/{seq_name[::-1]}_double.seq")
+    step4 = write_merge_file(f"{path}/{table_name[::-1]} DQ adjastment.shifts", step1,step3)
+    return (f"{path}/{table_name[::-1]} DQ adjastment.shifts",f"{path}/{seq_name[::-1]} duplicated.seq")
 
 
 ######################################################################################################################################################
@@ -734,12 +736,12 @@ def adjustment_assignment_table_and_seq (shift_assignment_fill,seq_fil,path):
 # step 1- convert the match file into a matrix
 # step 2- delete different amino acid correlation
 # step 3- functions that change the name of carbon to the two carbons correlation it represents (for each amino acid)
-# step 4- function that gets a matrix and changes the name of the represented INADEQUATE experiment data carbon into the correct carbons-couple correlation
+# step 4- function that gets a matrix and changes the name of the represented INADEQUATE experiment data carbon into the correct  carbons-couple correlation
 # step 5- functions that modify the match data according to isotopic labeling scheme
 # step 6- function that deletes peaks that are unlikely to appear (with lower ILP than criterion)
 # step 7- function that changes the overall value according to the new mat
 # step 8- functions that sort the match file according to the amino acid sequence or according to the value in the peak list
-# step 9- function that combines all the above functions into one.
+# step 9- function that combines all the above function into one.
 # get match file, sequence file and isotopic labeling scheme and create a new match file that contains only valid J-based INADEQUATE options after fitting to the isotopic labeling scheme
 
 
@@ -1476,7 +1478,7 @@ def custom_isotopic_adj (mat,custom_location_file):
     new_mat.append(["\n"])
     return new_mat
 
-# function that deletes improbable assignments (with ILP lower than the criterion) 
+# function that deletes improbable (with ILP lower than the criterion) assignments
 def criterion_for_ILP (mat,min_Probability):
     new_mat=[]
     new_mat.append(mat[0])
@@ -1550,7 +1552,7 @@ def arrange_by_peak (mat):
     return new_mat
 
 
-# function that combines all the above functions into one and creates an INADEQUATE match file.
+# function that generalizes all the above functions into one and creates an INADEQUATE match file.
 # sequence file is necessary because the function needs the length of the protein in order to convert the stored data into the real representation of it.
 def write_adjust_matches_matrix(matche_file,seq_file,isotopic_tagging,custom_labeling_file=None):
     f=open(seq_file,"r")
@@ -1588,7 +1590,7 @@ def write_adjust_matches_matrix(matche_file,seq_file,isotopic_tagging,custom_lab
 ######################################################################################################################################################
 
 
-# STAGE 3- convert the match file into the Cross Peak Analysis Tool format
+# STAGE 3- convert the match file into the cross peak analysis format
 
 def match_list_into_peak_list (match_file):
     # convert the match file into a matrix
@@ -1624,7 +1626,24 @@ def match_list_into_peak_list (match_file):
 # STAGE 4- getting the assignment file from BMRB website or convert an existing one from BMRB format to RAVEN format
 
 # function that gets BMRB URL and writes the assignment file according to it
-def get_BMRB_DATA (url,save_in_location):
+def get_BMRB_DATA (entry_number,save_in_location):
+    url = f"https://bmrb.io/data_library/summary/index.php?bmrbId={entry_number}"
+
+    # Send a GET request to the URL
+    response = requests.get(url)
+
+    # Parse the HTML content
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    # Find all the links on the page
+    links = soup.find_all('a', href=True)
+
+    # Loop through the links to find the one containing 'assigned_chemical_shifts'
+    for link in links:
+        if 'assigned_chemical_shifts' in link['href']:
+            # Get the URL of the link
+            url = urljoin(url, link['href'])
+
     website = urllib.request.urlopen(url)
     data=website.read().decode('utf-8')
     data=data.splitlines()
@@ -1712,9 +1731,9 @@ def BMRM_to_assignment (BMRB_file):
                 str+=new_list[i][j]+"\t"
         str+="\n"
 
-    f=open(BMRB_file[:BMRB_file.index(".")]+" Raven format"+BMRB_file[BMRB_file.index("."):],"w")
+    f=open(BMRB_file[:BMRB_file.index(".")]+" RAVEN format"+BMRB_file[BMRB_file.index("."):],"w")
     f.write(str)
-    return BMRB_file[:BMRB_file.index(".")]+" Raven format"+BMRB_file[BMRB_file.index("."):]
+    return BMRB_file[:BMRB_file.index(".")]+" RAVEN format"+BMRB_file[BMRB_file.index("."):]
 
 
 ######################################################################################################################################################
@@ -1751,7 +1770,7 @@ def choose_location():
 # step 2- function that gets two matrices (original and assigned) and return a matrix with peak that appears only in the original
 # step 3- function that deals with rounding issue with 5 as the last digit
 # step 4- function that gets a cross peak matrix and a path to save and write cross peak file in that location
-# step 5- function that combines all the above functions into one.
+# step 5- function that generalizes all the above functions into one.
 
 # step 1- function that converts the cross peak file into a matrix (without headline)
 def cross_peak_mat (cross_peak_file):
@@ -1875,7 +1894,7 @@ def round_iso (o_mat, a_mat):
 # step 4- function that gets a cross peak matrix and a path to save and write a cross peak file in that location
 def write_unassigned_file (mat,path,name):
     if mat==[]:
-        print (f"The two list are identical and contain the same information.")
+        print (f"The two lists are identical and contain the same information.")
         return None
     text_of_file="CC\nAssignment\tw1\tw2\n\n"
     for i in range(len(mat)):
@@ -1887,23 +1906,23 @@ def write_unassigned_file (mat,path,name):
     return f"{name}.list"
 
 
-# step 5- function that combines all the above function into one.
-def compare_original_to_assigned (peak_list_file,assigned_file,place_to_save):
-    original_mat=cross_peak_mat(peak_list_file)
-    assigned_mat=cross_peak_mat(assigned_file)
+# step 5- function that generalizes all the above function into one.
+def compare_original_to_assigned (original,assigned,place_to_save):
+    original_mat=cross_peak_mat(original)
+    assigned_mat=cross_peak_mat(assigned)
     step_2= mat_of_unassigned_peak(original_mat,assigned_mat)
     step_3= round_iso(step_2, assigned_mat)
 
     original_file_name=""
-    i = peak_list_file.find(".")-1
-    while peak_list_file[i] != "/":
-        original_file_name += peak_list_file[i]
+    i = original.find(".") - 1
+    while original[i] != "/":
+        original_file_name += original[i]
         i -= 1
     original_file_name=original_file_name[::-1]
 
     step_4=write_unassigned_file(step_3,place_to_save,f"unassigned peak in {original_file_name}")
     if step_4!= None:
-        print(f"I have created file for your use:\npeak list file with all unassigned peaks: \033[94m{step_4}\033[0m\n")
+        print(f"I have created a peak list file with all the unassigned peaks named: \033[94m{step_4}\033[0m\n")
     return
 
 
@@ -1914,10 +1933,27 @@ def compare_original_to_assigned (peak_list_file,assigned_file,place_to_save):
 # step 2- function that converts the assignment text into an assignment table
 # step 3- function that converts the full assignment table into a reduced table that POKY can read
 # step 4- function that creates the INADEQUATE assignment table
-# step 5- function that combines all the above functions
+# step 5- function that generalizes all the above functions
 
 
-def assignment_text_from_BMRB (url):
+def assignment_text_from_BMRB (entry_number):
+    url = f"https://bmrb.io/data_library/summary/index.php?bmrbId={entry_number}"
+
+    # Send a GET request to the URL
+    response = requests.get(url)
+
+    # Parse the HTML content
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    # Find all the links on the page
+    links = soup.find_all('a', href=True)
+
+    # Loop through the links to find the one containing 'assigned_chemical_shifts'
+    for link in links:
+        if 'assigned_chemical_shifts' in link['href']:
+            # Get the URL of the link
+            url = urljoin(url, link['href'])
+
     website = urllib.request.urlopen(url)
     data=website.read().decode('utf-8')
     data=data.splitlines()
@@ -1934,7 +1970,6 @@ def assignment_text_from_BMRB (url):
     while "  " in name_in_line:
         name_in_line = name_in_line.replace("  ", " ")
     name_in_line = name_in_line.split(" ")
-    protein_name = name_in_line[1]
 
     j = data.index("_Atom_chem_shift.ID")
     headline = []
@@ -1950,7 +1985,7 @@ def assignment_text_from_BMRB (url):
         new_data+= data[j]+"\n"
         j+=1
 
-    return (protein_name,new_data,headline)
+    return (new_data,headline)
 
 def bmrb_assignment_as_mat(str,headline):
     str=str.split("\n")
@@ -1964,18 +1999,19 @@ def bmrb_assignment_as_mat(str,headline):
 def relevant_part_in_BMRB_mat (mat):
     new_mat=[]
     for i in range(1,len(mat)):
-        if mat[i][mat[0].index("Atom_isotope_number")] == "13" :
-            new_mat.append([mat[i][mat[0].index("Auth_comp_ID")]+mat[i][mat[0].index("Auth_seq_ID")],mat[i][mat[0].index("Auth_atom_ID")].title(),mat[i][mat[0].index("Atom_isotope_number")]+mat[i][mat[0].index("Atom_type")],mat[i][mat[0].index("Val")]])
+        if mat[i]!= [""] and mat[i][mat[0].index("Atom_isotope_number")] == "13" :
+            new_mat.append([mat[i][mat[0].index("Comp_ID")]+mat[i][mat[0].index("Seq_ID")],mat[i][mat[0].index("Atom_ID")].title(),mat[i][mat[0].index("Atom_isotope_number")]+mat[i][mat[0].index("Atom_type")],mat[i][mat[0].index("Val")]])
             new_mat[-1][0]=Amino_acid(new_mat[-1][0])
-    return new_mat
+    name=mat[2][mat[0].index("Entry_ID")]
+    return (new_mat,name)
 
 def INADEQUATE_adj_for_POKY_file(mat):
     new_mat=mat[:]
     for first_c in range(len(mat)-1):
         aa_type=mat[first_c][0].AA_ID()
-        carbon1=mat[first_c][1]
+        carbon1=mat[first_c][1].title()
         for sec_c in range(first_c+1, len(mat)):
-            carbon2=mat[sec_c][1]
+            carbon2=mat[sec_c][1].title()
 
             x=mat[first_c][0]
             z=mat[sec_c][0]
@@ -2057,44 +2093,84 @@ def INADEQUATE_adj_for_POKY_file(mat):
 
     return new_mat
 
-def writ_BMRB_assignment_for_POKY (mat,name,location):
-    text=""
+def write_BMRB_assignment_for_POKY (mat,name,location):
+    text="Group\tAtom\tNuc\tShift\n"
     for i in range(len(mat)):
         for j in range(len(mat[0])-1):
-            text+=f"{mat[i][j]} "
+            text+=f"{mat[i][j]}\t"
         text+= mat[i][-1]+"\n"
-    path= f"{location}/{name} INADEQUATE assignment for POKY.list"
+    path= f"{location}/POKY {name} DQ resonances.list"
     f=open(path,"w")
     f.write(text)
-    return  f"\033[94m{name} INADEQUATE assignment for POKY.list\033[0m"
+    return  f"\033[94mPOKY {name} DQ resonances.list\033[0m"
 
-def entry_number_to_POKY_assignment_table (url, folder):
-    step1= assignment_text_from_BMRB (url)
-    step2= bmrb_assignment_as_mat (step1[1],step1[2])
+def entry_number_to_POKY_assignment_table (entry_number, folder):
+    step1= assignment_text_from_BMRB (entry_number)
+    step2= bmrb_assignment_as_mat (step1[0],step1[1])
     step3= relevant_part_in_BMRB_mat (step2)
-    step4= INADEQUATE_adj_for_POKY_file (step3)
-    step5= writ_BMRB_assignment_for_POKY (step4,f"{step1[0]} protein",folder)
+    step4= INADEQUATE_adj_for_POKY_file (step3[0])
+    step5= write_BMRB_assignment_for_POKY(step4, f"{step3[1]} protein", folder)
     return step5
 
-print("This Python script's goal is to make the necessary adjustments required for the use of Raven in proteins ssNMR J-based INADEQUATE experiment analysis.\n")
-first_choice=input("Please choose the letter that corresponds to the option you desire:\n\na. I would like to create an assignment table and a sequence file for the use of Raven in INADEQUATE Cross peaks assignment tool\n\nb. I would like to process the received matches from Raven Cross peaks assignment tool\n\nc. I would like to convert the match format to the Cross peaks analysis tool format\n\nd. I would like to compare between peak list and its associated assignment peak list and find which peak remained unassigned\n\ne. I would like to create an INADEQUATE assignment table from BMRB data source suitable for POKY\n\n")
+
+
+def SQ_to_DQ (SQ_file,DQ_saving,saving_name):
+    f = open(SQ_file)
+    lists = f.readlines()
+    f.close()
+
+    mat=[]
+    for i in range(len(lists)):
+        while "  " in lists[i]:
+            lists[i] = lists[i].replace("  ", " ")
+
+        line= lists[i].strip(" \n\t").split(" ")
+        if len(line) == 1:
+            line=line[0].split("\t")
+        if line != [""] :
+            if i != 0:
+                line[0] = Amino_acid(line[0])
+                mat.append(line)
+
+    DQ_res=INADEQUATE_adj_for_POKY_file (mat)
+
+    text="Group\tAtom\tNuc\tShift\tSDev\t#\n"
+    for n in range(len(DQ_res)):
+        for m in range(len(DQ_res[n])-1):
+            text += f"{DQ_res[n][m]}\t"
+        text += f"{DQ_res[n][-1]}\n"
+
+    path = f"{DQ_saving}/{saving_name}.list"
+    f = open(path, "w")
+    f.write(text)
+
+    return
+
+
+
+
+
+
+print("\033[1mDouble Quantum Assignment Table Creator\033[0m")
+print("This Python script's goal is to make the necessary adjustments required for the use of RAVEN or POKY to assign proteins in J-based double quantum NMR experiment.")
+first_choice=input("\nPlease choose the letter that corresponds to the option you desire:\na. Create an assignment table and a sequence file for the use of RAVEN Cross peaks assignment tool suitable for J-based double quantum experiment\nb. Process the received matches from Raven Cross peaks assignment tool\nc. Convert the matches format to the Cross peaks analysis format\nd. Find unassigned peaks after the assignment process\ne. Create a J-based double quantum assignment table suitable for POKY\n\n")
 
 if first_choice=="a":
-    print("You have selected option a- make assignment and sequence files suitable for Raven.\nPlease select the \033[91msequence\033[0m file of the studied protein:")
+    print("You have selected option a - create assignment and sequence files suitable for RAVEN in J-based double quantum NMR experiment.\nPlease select the \033[91msequence\033[0m file of the studied protein:")
     seq_location = choose_file()
-    print(f"\nyou have selected: {print_name(seq_location)}\n\n")
+    print(f"\nyou have selected: {print_name(seq_location)}")
 
-    source_for_assignment=input("Please choose the \033[91mdatasource\033[0m for the assignment table:\n\na. Assignment table according to the BMRB entry number of the protein\n\nb. Assignment table file in BMRB format\n\nc. Assignment table file in Raven format\n\n")
+    source_for_assignment=input("\nPlease choose the \033[91mdatasource\033[0m for the assignment table:\na. Assignment table according to the BMRB entry number of the protein\nb. Assignment table file in BMRB format\nc. Assignment table file in RAVEN format\n\n")
 
     if source_for_assignment=="a":
-        print("Please select the \033[91mpath\033[0m to the location that you would like to save the assignment file in\n\n")
+        print("Please select the \033[91mpath\033[0m to the location that you would like to save the assignment file in\n")
         assignment_path =choose_location()
-        print(f"You have selected: \033[94m{assignment_path}\033[0m")
-        url=input("Please input the \033[91mURL\033[0m of the studied protein in BMRB-assigned_chem_shift_list\n\n")
-        BMRB_name=get_BMRB_DATA(url,assignment_path)
+        print(f"You have selected: \033[94m{assignment_path}\033[0m\n")
+        entry_num=input("Please enter the BMRB \033[91mEntry Number\033[0m of the studied protein\n\n")
+        BMRB_name=get_BMRB_DATA(entry_num, assignment_path)
         assignment_table=BMRM_to_assignment(BMRB_name)
         two_file=adjustment_assignment_table_and_seq(assignment_table, seq_location,assignment_path)
-        print (f"I have created 4 files for your use:\n(1) double sequence of amino acids name: {print_name(two_file[1])}\n(2) assigned chemical shifts file according to the BMRB format name: {print_name(BMRB_name)}\n(3) assigned chemical shifts file in the Raven format name: {print_name(assignment_table)}\n(4) assigned shifts with the adjustments for INADEQUATE name: {print_name(two_file[0])}\n\nIn order to use the data correctly please load files (1) and (4) and the adequate peaklist to Raven.\nPick only the 'all correlations' option in the Output Configuration & Run.\n\n")
+        print (f"I have created 4 files for your use:\n(1) Duplicated sequence of amino acids named: {print_name(two_file[1])}\n(2) Assigned chemical shifts file according to the BMRB format named: {print_name(BMRB_name)}\n(3) Assigned chemical shifts file in the RAVEN format named: {print_name(assignment_table)}\n(4) Assigned chemical shifts with the adjustments for J-based double quantum experiment named: {print_name(two_file[0])}\n\nIn order to use the data correctly please load files (1) and (4) and the adequate peaklist into RAVEN.\nPick only the 'all correlations' option in the Output Configuration & Run.\n\n")
 
 
     if source_for_assignment=="b":
@@ -2106,7 +2182,7 @@ if first_choice=="a":
         while location[i] != "/":
             location = location[:i]
         two_file=adjustment_assignment_table_and_seq(assignment_table, seq_location,location)
-        print(f"I have created 3 files for your use:\n(1) double sequence of amino acids name: {print_name(two_file[1])}\n(2) an assigned chemical shifts file in Raven format name: {print_name(assignment_table)}\n(3) assigned shifts with the adjustments for INADEQUATE name: {print_name(two_file[0])}\n\nIn order to use the data correctly please load files (1) and (3) and the adequate peaklist into Raven.\nTick only the 'all correlations' option in the Output Configuration & Run.\n\n")
+        print(f"I have created 3 files for your use:\n(1) Duplicated sequence of amino acids named: {print_name(two_file[1])}\n(2) Assigned chemical shifts file in RAVEN format named: {print_name(assignment_table)}\n(3) Assigned shifts with the adjustments for J-based double quantum experiment named: {print_name(two_file[0])}\n\nIn order to use the data correctly please load files (1) and (3) and the adequate peaklist into RAVEN.\nPick only the 'all correlations' option in the Output Configuration & Run.\n\n")
 
 
     if source_for_assignment=="c":
@@ -2117,17 +2193,16 @@ if first_choice=="a":
         while location[i] != "/":
             location = location[:i]
         two_file=adjustment_assignment_table_and_seq(assignment_table, seq_location,location)
-        print(f"I have created 2 files for your use:\n(1) double sequence of amino acids name: {print_name(two_file[1])}\n(2) assigned shifts with the adjustments for INADEQUATE name: {print_name(two_file[0])}\n\nIn order to use the data correctly please load the created files and the adequate peaklist into Raven.\nTick only the 'all correlations' option in the Output Configuration & Run.\n\n")
+        print(f"I have created 2 files for your use:\n(1) Duplicated sequence of amino acids named: {print_name(two_file[1])}\n(2) Assigned shifts with the adjustments for J-based double quantum experiment named: {print_name(two_file[0])}\n\nIn order to use the data correctly please load the created files and the adequate peaklist into RAVEN.\nPick only the 'all correlations' option in the Output Configuration & Run.\n\n")
 
 
-    continue_yes_no=input("Would you like to continue and make the adjustments for the received match file? (enter yes or no)\n")
+    continue_yes_no=input("Would you like to continue and make the adjustments for the received matches file? (enter yes or no)\n")
 
     if continue_yes_no=="yes":
-        print("Please select the \033[91mmatch\033[0m file:\n\n")
+        print("Please select the \033[91mmatches\033[0m file:\n")
         match_file=choose_file()
-        print(f"\nYou have selected: {print_name(match_file)}\n\n")
-        isotopic_tagging = input(
-            "Please select the \033[91mIsotope Labeling\033[0m that suitable for the experiment:\n\na. Uniform\n\nb. 1,3-Glycerol\n\nc. 2-Glycerol\n\nd. Custom\n")
+        print(f"You have selected: {print_name(match_file)}\n")
+        isotopic_tagging = input("Please select the \033[91mIsotope Labeling Scheme\033[0m that fits the sample:\na. Uniform\nb. 1,3-Glycerol\nc. 2-Glycerol\nd. Custom\n\n")
         if isotopic_tagging == "a":
             isotopic_tagging = "uniform"
         elif isotopic_tagging == "b":
@@ -2136,18 +2211,18 @@ if first_choice=="a":
             isotopic_tagging = "2-Glycerol"
         elif isotopic_tagging == "d":
             isotopic_tagging = "Custom"
-        print(f"You have selected: \033[94m{isotopic_tagging}\033[0m Labelling\n")
+        print(f"You have selected: \033[94m{isotopic_tagging}\033[0m Labeling\n")
         custom_isotopic_file=None
         if isotopic_tagging == "Custom":
             print("Please select the \033[91mCustom Isotope Labeling\033[0m file")
             custom_isotopic_file = choose_file()
             print(f"You have selected: {print_name(custom_isotopic_file)}\n\n")
         adjusted_match=write_adjust_matches_matrix(match_file,seq_location,isotopic_tagging,custom_isotopic_file)
-        print(f"I created a new file that contains only DQ-associated-terms correlations with the correct numenclature name: {print_name(adjusted_match)}\n\n")
-        continue_yes_no = input("Would you like to continue and make the adjustments for the Crosspeaks analysis tool? (enter yes or no)\n")
+        print(f"I created a new matches file containing only the possible 13C-13C correlations according to the isotope labeling probability and with the correct representation: {print_name(adjusted_match)}")
+        continue_yes_no = input("Would you like to continue and make the adjustments for the cross peaks analysis tool? (enter yes or no)\n")
         if continue_yes_no=="yes":
             croos_peak_file=match_list_into_peak_list(adjusted_match)
-            print(f"I created a new file that contains a file suitable for Crosspeaks analysis tool name: {print_name(croos_peak_file)}\n\ngood luck")
+            print(f"\nI created a new file in the cross peaks analysis format named: {print_name(croos_peak_file)}\ngood luck")
         else:
             print ("ok\ngood luck")
     else:
@@ -2155,12 +2230,12 @@ if first_choice=="a":
 
 
 if first_choice=="b":
-    print("You have selected option b- Receiving a match file and convert it into the corresponding possible J-based INADEQUATE correlations.\nPlease select the \033[91msequence\033[0m file of the studied protein:\n")
+    print("You have selected option b - Convert a matches file into the corresponding J-based double quantum corelations it represent.\nPlease select the \033[91msequence\033[0m file of the studied protein:\n")
     seq_location = choose_file()
-    print(f"\nYou have selected: {print_name(seq_location)}\n\nPlease select the desired \033[91mmatch\033[0m file:\n")
+    print(f"\nYou have selected: {print_name(seq_location)}\n\nPlease select the desired \033[91mmatches\033[0m file:")
     match_file=choose_file()
-    print(f"\nYou have selected: {print_name(match_file)}\n\n")
-    isotopic_tagging=input("Please select the Isotope Labeling that suitable for the experiment:\n\na. Uniform\n\nb. 1,3-Glycerol\n\nc. 2-Glycerol\n\nd. Custom\n")
+    print(f"You have selected: {print_name(match_file)}\n")
+    isotopic_tagging = input("Please select the \033[91mIsotope Labeling Scheme\033[0m that fits the sample:\na. Uniform\nb. 1,3-Glycerol\nc. 2-Glycerol\nd. Custom\n\n")
     if isotopic_tagging=="a":
         isotopic_tagging= "uniform"
     elif isotopic_tagging=="b":
@@ -2169,52 +2244,77 @@ if first_choice=="b":
         isotopic_tagging = "2-Glycerol"
     elif isotopic_tagging =="d":
         isotopic_tagging = "Custom"
-    print (f"You have selected: \033[94m{isotopic_tagging}\033[0m Labelling\n")
+    print (f"You have selected: \033[94m{isotopic_tagging}\033[0m Labeling\n")
     custom_isotopic_file = None
     if isotopic_tagging == "Custom":
         print("Please select the \033[91mCustom Isotope Labeling\033[0m file")
         custom_isotopic_file=choose_file()
         print(f"You have selected: {print_name(custom_isotopic_file)}\n\n")
     adjusted_match = write_adjust_matches_matrix(match_file,seq_location,isotopic_tagging,custom_isotopic_file)
-    print(f"I created a new file that contains only DQ-associated-terms correlations with the correct numenclature name: {print_name(adjusted_match)}\n\n")
-    continue_yes_no = input(
-        "Would you like to continue and make the adjustment for the Cross peaks analysis tool? (enter yes or no)\n")
+    print(f"I created a new matches file containing only the possible 13C-13C correlations according to the isotope labeling probability and with the correct representation: {print_name(adjusted_match)}")
+    continue_yes_no = input("Would you like to continue and make the adjustment for the cross peaks analysis tool? (enter yes or no)\n")
     if continue_yes_no == "yes":
         croos_peak_file=match_list_into_peak_list(adjusted_match)
-        print(f"I created a new file that contains a file suitable for Cross peaks analysis tool name: {print_name(croos_peak_file)}\n\ngood luck")
+        print(f"I created a new file in the cross peaks analysis format named: {print_name(croos_peak_file)}\n\ngood luck")
     else:
         print("ok\ngood luck")
 
 
 
 if first_choice=="c":
-    print("You have selected option c- having a match file and convert it into the Crosspeaks analysis format.\nPlease select the \033[91mmatch\033[0m file:\n\n")
+    print("You have selected option c - having a matches file and convert it into the Cross peaks analysis format.\nPlease select the \033[91mmatches\033[0m file:\n\n")
     adjusted_match=choose_file()
     print(f"\nYou have selected: {print_name(adjusted_match)}\n\n")
     croos_peak_file=match_list_into_peak_list(adjusted_match)
-    print(f"I created a new file that contains a file suitable for Crosspeaks analysis tool name: {print_name(croos_peak_file)}\n\ngood luck")
+    print(f"I created a new file in the cross peaks analysis format named: {print_name(croos_peak_file)}\n\ngood luck")
 
 
 if first_choice=="d":
-    print("You have selected option d- compare peak list and its associated assignment peak list\nthis option creates a new file that contains only the unassigned peaks\n")
-    print ("Please select the \033[91moriginal \033[0mpeak list file:\n")
+    print("You have selected option d - find unassigned peaks after the assignment process\nThis option compares the original peak list and the one received after the assignment process, both in analysis format, and creates a new file which contains only the unassigned peaks\n")
+    print ("Please select the \033[91moriginal\033[0m peak list:\n")
     original_peak_list=choose_file()
-    print(f"You have selected: {print_name(original_peak_list)}\n\n")
-    print ("Please select the \033[91massociated \033[0massignment peak list file:\n")
+    print(f"You have selected: {print_name(original_peak_list)}\n")
+    print ("Please select the \033[91massigned \033[0m peak list:\n")
     associated_peak_list=choose_file()
-    print(f"You have selected: {print_name(associated_peak_list)}\n\n")
-    print("Please select the \033[91mfolder \033[0myou would like to save the new comparison file:\n")
+    print(f"You have selected: {print_name(associated_peak_list)}\n")
+    print("Please select the \033[91mfolder\033[0m you would like to save the unassigned peaks in:\n")
     comparison_location=choose_location()
-    print(f"You have selected: \033[94m{comparison_location}\033[0m\n\n")
-    compare_original_to_assigned(original_peak_list,associated_peak_list,comparison_location)
-    print("\ngood luck")
+    print(f"You have selected: \033[94m{comparison_location}\033[0m\n")
+    compare_original_to_assigned(original_peak_list, associated_peak_list, comparison_location)
+    print("good luck")
+
+
 
 
 if first_choice=="e":
-    print("You have selected option e- create an INADEQUATE assignment table that can be uploaded into POKY\nPleas choose the folder you would like to save the file in:\n")
-    folder=choose_location()
-    print(f"You have selected: \033[94m{folder}\033[0m\n\n")
-    entry_number=input(f"Pleas type the BMRB\033[91e URL\033[0m of the studied protein from BMRB\n")
-    POKY_assignment_table = entry_number_to_POKY_assignment_table(entry_number,folder)
-    print(f"\nI created an INADEQUATE assignment file that can be upload to POKY name: {POKY_assignment_table}\n\ngood luck")
+    print(f"You have selected option e - create a J-based double quantum assignment table that can be uploaded into POKY.\nPlease choose your reference single quantum \033[91mresonance data\033[0m:")
+    POKY_choice = input("\na. Resonances from BMRB database\nb. Existing resonances file\n\n")
+    if POKY_choice == "a":
+        print ("Please choose the \033[91mfolder\033[0m you would like to save the file in:\n")
+        folder = choose_location()
+        print(f"You have selected: \033[94m{folder}\033[0m\n")
+        entry_number = input(f"Please type the BMRB \033[91mEntry Number\033[0m of the studied protein\n")
+        POKY_assignment_table = entry_number_to_POKY_assignment_table(entry_number, folder)
+        print( f"\nI created a double quantum resonances file that can be uploaded into POKY named:\n{POKY_assignment_table}\ngood luck")
+
+    if POKY_choice == "b":
+        print("Please choose the \033[91mexisting resonances\033[0m file:\n")
+        SQ_resonance=choose_file()
+        print(f"You have selected: {print_name(SQ_resonance)}\n")
+
+        name = ""
+        i = -1
+        while SQ_resonance[i] != "/":
+            name += SQ_resonance[i]
+            i -= 1
+        name = "double quantum resonance " + name[::-1]
+        DQ_saving = SQ_resonance[:i]
+
+        SQ_to_DQ(SQ_resonance,DQ_saving,name)
+        print( f"I created a double quantum resonances file that can be uploaded into POKY named:\n\033[94m {name}\033[0m\ngood luck")
+
+
+
+
+
 

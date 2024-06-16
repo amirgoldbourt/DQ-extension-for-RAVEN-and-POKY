@@ -8,16 +8,20 @@ import urllib.request
 
 
 def choose_saving_location():
-    # A function that opens a dialog box that allows the user to select the saving location
+    # This is a function that open a dialog box that allows the user to select the saving location
     root = tkinter.Tk()
     root.withdraw()
     root.wm_attributes('-topmost', 1)
     return  filedialog.askdirectory(title="Select a Directory")
 
-
+def choose_file():
+    root = tkinter.Tk()
+    root.withdraw()
+    root.wm_attributes('-topmost', 1)
+    return  filedialog.askopenfilename()
 
 def get_data_sheet_URL (entry_number):
-    # A function that gets from the user the BMRB entry number of the studied protein and return its datasheet URL
+    # This is a function that get from the user the BMRB entry number of the study protein and return its datasheet URL
     url = f"https://bmrb.io/data_library/summary/index.php?bmrbId={entry_number}"
 
     # Send a GET request to the URL
@@ -43,7 +47,7 @@ def get_data_sheet_URL (entry_number):
 
 
 def assignment_text_from_BMRB (URL):
-    # A function that gets the datasheet URL and returns a string of the shifts and a list of the headline
+    # This is a function that get the datasheet URL and return a string of the shifts and a list of the headline
 
     # get list of lines
     website = urllib.request.urlopen(URL)
@@ -52,7 +56,7 @@ def assignment_text_from_BMRB (URL):
 
     # "clean" the lines
     for l in range(len(data)):
-        data[l] = data[l].strip()
+        data[l] = data[l].strip(" ")
 
     # list of headlines
     j = data.index("_Atom_chem_shift.ID")
@@ -75,7 +79,7 @@ def assignment_text_from_BMRB (URL):
 
 
 def bmrb_assignment_as_mat(shifts,headline):
-    # A function that gets the string of the shifts and the list of headline and combines them into matrix
+    # This is a function that get the string of the shifts and the list of headline and combin them into matrix
     shifts=shifts.split("\n")
     mat = [headline]
     for i in range(len(shifts) - 1):
@@ -89,13 +93,13 @@ def bmrb_assignment_as_mat(shifts,headline):
 
 
 def relevant_part_in_BMRB_mat (mat):
-    # A function that reduces the original shits matrix and leaves only the relevant parts for POKY resonances list
+    # This is a function that reduce the original shits matrix and leave only the relevant parts for POKY resonances list
 
     # Relevant parts:
     new_mat=[]
     for i in range(1,len(mat)):
         if mat[i][mat[0].index("Atom_isotope_number")] == "13" :
-            new_mat.append([mat[i][mat[0].index("Auth_comp_ID")]+mat[i][mat[0].index("Auth_seq_ID")],mat[i][mat[0].index("Auth_atom_ID")].title(),mat[i][mat[0].index("Atom_isotope_number")]+mat[i][mat[0].index("Atom_type")],mat[i][mat[0].index("Val")]])
+            new_mat.append([mat[i][mat[0].index("Comp_ID")]+mat[i][mat[0].index("Seq_ID")],mat[i][mat[0].index("Atom_ID")].title(),mat[i][mat[0].index("Atom_isotope_number")]+mat[i][mat[0].index("Atom_type")],mat[i][mat[0].index("Val")]])
 
     # Uniform marking of amino acids by a single letter
     amino_acid_marks=[["A", "Ala"], ["C", "Cys"], ["D", "Asp"], ["E", "Glu"], ["F", "Phe"], ["G", "Gly"], ["H", "His"], ["I", "Ile"], ["K", "Lys"], ["L", "Leu"], ["M", "Met"], ["N", "Asn"], ["P", "Pro"], ["Q", "Gln"], ["R", "Arg"], ["S", "Ser"], ["T", "Thr"], ["V", "Val"], ["W", "Trp"], ["Y", "Tyr"]]
@@ -114,18 +118,18 @@ def relevant_part_in_BMRB_mat (mat):
 
 
 def INADEQUATE_adj_for_POKY(mat):
-    # A function that adds the double quantum resonances to the the single quantum ones
+    # This function add to the single quantum resonances the Double Quantum ones
     new_mat=mat[:]
     for first_c in range(len(mat)-1):
-        carbon1=mat[first_c][1]
+        carbon1=mat[first_c][1].title()
         for sec_c in range(first_c+1, len(mat)):
-            carbon2=mat[sec_c][1]
+            carbon2=mat[sec_c][1].title()
 
-            # Consider only carbons that belong to the same amino acid
+            # Consider only carbon that belong to the same amino acid
             if mat[first_c][0]==mat[sec_c][0]:
                 aa_type = mat[first_c][0][0]
 
-                # Consider only carbons that share a chemical bond - all the possible options
+                # Consider only carbon that bound together - all the possible options
                 if aa_type == "G":
                     adjacent_carbon_options = [["C","Ca"]]
                     for option in adjacent_carbon_options:
@@ -204,12 +208,12 @@ def INADEQUATE_adj_for_POKY(mat):
 
 
 
-def writ_BMRB_assignment_for_POKY (mat,name,location):
-    # A function that writes the resonances list (including the double quantum) into a list file saving in the chosen location
-    text=""
+def write_BMRB_assignment_for_POKY (mat,name,location):
+    # This function write the resonances list (including the Double Quantum) into a list file saving in the chosen location
+    text="Group\tAtom\tNuc\tShift\n"
     for i in range(len(mat)):
         for j in range(len(mat[0])-1):
-            text+=f"{mat[i][j]} "
+            text+=f"{mat[i][j]}\t"
         text+= mat[i][-1]+"\n"
     path= f"{location}/{name} DQ resonances.list"
     f=open(path,"w")
@@ -219,20 +223,76 @@ def writ_BMRB_assignment_for_POKY (mat,name,location):
 
 
 def entry_number_to_POKY_assignment_table (entry_number, folder):
-    # A function that uses all of the above functions and with the input of BMRB entry number and the saving location creates a new double quantum resonances file for POKY
+    # This function use all of the above functions and with the input of BMRB entry number and the saving location create a new Double Quantum resonances file for POKY
     step1=get_data_sheet_URL (entry_number)
     if step1 != None:
         step2= assignment_text_from_BMRB (step1)
         step3=bmrb_assignment_as_mat(step2[0],step2[1])
         step4=relevant_part_in_BMRB_mat(step3)
         step5=INADEQUATE_adj_for_POKY(step4)
-        step6=writ_BMRB_assignment_for_POKY(step5,entry_number,folder)
-        print(f"\nI created a Double Quantum resonances file that can be upload to POKY name: {step6}\ngood luck!")
-    return None
+        step6= write_BMRB_assignment_for_POKY(step5, entry_number, folder)
+    return step6
 
 
-print(f"Pleas choose the folder you would like to save the file in:")
-folder=choose_saving_location()
-print(f"You have selected: \033[94m{folder}\033[0m\n\n")
-entry_number=input(f"Pleas type the \033[91e BMRB entry number\033[0m of the studied protein\n")
-entry_number_to_POKY_assignment_table (entry_number, folder)
+
+
+def SQ_to_DQ (SQ_file,DQ_saving,saving_name):
+    f = open(SQ_file)
+    lists = f.readlines()
+    f.close()
+
+    mat = []
+    for i in range(len(lists)):
+        while "  " in lists[i]:
+            lists[i] = lists[i].replace("  ", " ")
+
+        line = lists[i].strip(" \n\t").split(" ")
+        if len(line) == 1:
+            line=line[0].split("\t")
+        if line != [""]:
+            if i != 0:
+                mat.append(line)
+
+    DQ_res = INADEQUATE_adj_for_POKY(mat)
+
+    text = "Group\tAtom\tNuc\tShift\tSDev\t#\n"
+    for n in range(len(DQ_res)):
+        for m in range(len(DQ_res[n]) - 1):
+            text += f"{DQ_res[n][m]}\t"
+        text += f"{DQ_res[n][-1]}\n"
+
+    path = f"{DQ_saving}/{saving_name}"
+    f = open(path, "w")
+    f.write(text)
+
+    return
+
+print("\033[1mPOKY Double Quantum Resonances Converter\033[0m\n")
+print("This Python script will create a double quantum assignment table base on single quantum resonances data either from BMRB database or from an existing resonance file in POKY format")
+print("The double quantum assignment table could then be uploaded into POKY which allows a convenient analysis of double quantum experiment like INADEQUATE\n")
+
+print("Please choose your single quantum resonances data source:")
+data_source=input("a. Resonances from BMRB database\nb. Resonances from a single quantum experiment in POKY format\n")
+
+if data_source=="a":
+    print(f"Please choose the folder you would like to save the file in:")
+    folder = choose_saving_location()
+    print(f"You have selected: \033[94m{folder}\033[0m\n")
+    entry_number = input(f"Please type the \033[91e BMRB entry number\033[0m of the studied protein\n")
+    name=entry_number_to_POKY_assignment_table(entry_number, folder)
+    print (f"Double quantum resonances file named {name} has been created")
+
+if data_source =="b":
+    print(f"Please choose the single quantum resonances file:")
+    SQ_file=choose_file()
+    print(f"You have selected: \033[94m{SQ_file}\033[0m\n")
+    name=""
+    i=-1
+    while SQ_file[i] != "/":
+        name+=SQ_file[i]
+        i-=1
+    name= "Double quantum resonance " + name[::-1]
+    DQ_saving=SQ_file[:i]
+    SQ_to_DQ(SQ_file, DQ_saving, name)
+
+
